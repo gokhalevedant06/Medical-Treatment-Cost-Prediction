@@ -1,0 +1,245 @@
+---
+title: "Medical Treatment Cost Prediction"
+output: html_notebook
+---
+
+Importing Dataset
+```{r}
+data <- read.csv(file = "insurance.csv")
+head(data)
+```
+Importing Required Libraries
+```{r}
+library(caTools) 
+library(ggplot2)
+
+```
+
+Handling Categorial Variables
+```{r}
+data$gender <- ifelse(data$gender=="male",1,0)
+head(data)
+```
+
+
+```{r}
+data$smoker <- ifelse(data$smoker=="yes",1,0)
+head(data)
+```
+
+
+
+```{r}
+data$region<-ifelse(data$region=="southeast",1,0)
+head(data)
+```
+Splitting Dataset
+```{r}
+set.seed(123)
+split = sample.split(data$charges,SplitRatio = 1/2)
+test_set = subset(data,split==TRUE)
+training_set = subset(data,split==FALSE)
+head(training_set)
+head(test_set)
+```
+Checking for duplicate rows
+```{r}
+training_set[duplicated(training_set),]
+```
+checking for missing values
+```{r}
+colSums(is.na(training_set))
+```
+```{r}
+colSums(is.na(test_set))
+```
+Some descriptive statistic
+```{r}
+summary(training_set)
+```
+
+Plotting Distribution of charges
+```{r}
+#png("charges_distribution.png")
+charges_distribution <- ggplot(data=training_set,aes(x=charges))+geom_density(alpha=1)+ggtitle("Distribution Of Charges")
+charges_distribution
+#print(charges_distribution)
+#dev.off()
+
+```
+Distribution is right skewed with a long tail to the right
+
+```{r}
+for (col in c('gender', 'region', 'children', 'smoker')) {
+  plot <- ggplot(data = training_set,
+                 aes_string(x = col, y = 'charges', group = col, fill = col)) + 
+            geom_boxplot(show.legend = FALSE) + 
+            ggtitle(glue::glue("Boxplot of Medical Charges per {col}"))
+  print(plot)
+}
+```
+
+```{r}
+
+  charges_age_smoker <- ggplot(data = training_set, aes_string(x = 'age', y = 'charges', group = 'smoker', fill = 'smoker', col = 'smoker')) + 
+    geom_jitter() + 
+    geom_smooth(method = 'lm') +
+    ggtitle(glue::glue("Charges vs Age"))  
+charges_age_smoker
+
+```
+```{r}
+ charges_bmi_smoker <- ggplot(data = training_set, aes_string(x = 'bmi', y = 'charges', group = 'smoker', fill = 'smoker', col = 'smoker')) + 
+    geom_jitter() + 
+    geom_smooth(method = 'lm') +
+    ggtitle(glue::glue("Charges vs BMI"))  
+  charges_bmi_smoker
+```
+
+
+```{r}
+ charges_children_smoker <- ggplot(data = training_set, aes_string(x = 'children', y = 'charges', group = 'smoker', fill = 'smoker', col = 'smoker')) + 
+    geom_jitter() + 
+    geom_smooth(method = 'lm') +
+    ggtitle(glue::glue("Charges vs Number of Children"))  
+ charges_children_smoker
+```
+
+
+```{r}
+regressor <- lm(formula = charges~.,data=training_set)
+summary(regressor)
+```
+
+Excluding Insignificant Variables
+```{r}
+regressor <- lm(formula = charges~age+bmi+children+smoker,data=data)
+summary(regressor)
+```
+
+
+```{r}
+regressor <- lm(formula = charges~age+gender+bmi+children+smoker,data=data)
+summary(regressor)
+```
+
+
+```{r}
+regressor <- lm(formula = charges~age+region+bmi+children+smoker,data=data)
+summary(regressor)
+```
+
+
+```{r}
+plot(training_set$age,training_set$charges, xlab="Age", ylab="Charges", main="Age vs Charges",las=1, type="p")
+```
+
+Trying Polynomial Regression
+```{r}
+x <- data[-c(2,6,7)]
+y <- data[7]
+head(x)
+```
+
+```{r}
+y <- data[7]
+head(y)
+```
+Generating Polynomial Features
+```{r}
+pol <- poly(as.matrix(x[,1:4]) ,degree=2, raw=TRUE)
+pol
+```
+
+
+```{r}
+df <- data.frame(Age = pol[,1],
+                  Age2=pol[,2],
+                  Bmi=pol[,3],
+                  Age_Bmi=pol[,4],
+                  Bmi2=pol[,5],
+                  Children=pol[,6],
+                  Children_Age=pol[,7],
+                  Children_bmi=pol[,8],
+                  Children2= pol[,9],
+                  Smoker=pol[,10],
+                  Smoker_Age=pol[,11],
+                  Smoker_Bmi=pol[,12],
+                  Smoker_Children=pol[,13],
+                  Smoker2=pol[,14])
+```
+
+
+```{r}
+df_charges <- data.frame(y)
+df$Charges <- df_charges[,1] 
+df
+```
+
+
+```{r}
+set.seed(123)
+split = sample.split(df,SplitRatio = 1/5)
+test = subset(df,split==TRUE)
+train = subset(df,split==FALSE)
+head(test)
+head(train)
+```
+
+
+```{r}
+pol_reg = lm(formula = Charges~., data = df)
+summary(pol_reg)
+```
+```{r}
+pol_reg1 = lm(formula = Charges~Age2+Bmi+Bmi2+Smoker+Smoker_Bmi, data = df)
+summary(pol_reg1)
+```
+
+
+```{r}
+pol_reg2 = lm(formula = Charges~Age2+Bmi+Bmi2+Smoker+Smoker_Bmi+Children, data = df)
+summary(pol_reg2)
+
+```
+
+
+```{r}
+pred <- predict(pol_reg2, newdata = test)
+pred
+```
+
+
+```{r}
+Charges_pred <- data.frame(pred)
+df1 <- data.frame(Charges=test[,15])
+df1$Predicted <- Charges_pred[,1]
+df1
+```
+
+
+```{r}
+p_age <- readline(prompt = "Enter Your Age: ")
+p_age<- as.numeric(p_age)
+p_bmi <- readline(prompt = "Enter Your BMI: ")
+p_bmi<- as.numeric(p_bmi)
+p_smoker <- readline(prompt = "Do You Smoke ? Enter 1 if Yes else 0: ")
+p_smoker<- as.numeric(p_smoker)
+p_children <- readline(prompt = "Enter Number of Children: ")
+p_children<- as.numeric(p_children)
+values <- data.frame(
+              Age2 = p_age*p_age,
+              Bmi = p_bmi,
+              Bmi2 = p_bmi*p_bmi,
+              Children=p_children,
+              Smoker=p_smoker,
+              Smoker_Bmi=p_smoker*p_bmi)
+predicting <- predict(pol_reg2,newdata = values)
+cat("Predicted Medical Treatment Cost: ",predicting)
+
+```
+
+
+```{r}
+```
+
